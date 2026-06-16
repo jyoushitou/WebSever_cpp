@@ -69,6 +69,7 @@ add_executable(${PROJECT_NAME}
     source/body/https_api.cpp     # HTTP 服务器实现
     source/body/Token.cpp         # Token验证
     source/body/Json.cpp          # Json
+    source/body/Task.cpp          # Task
 )
 
 # ===== 链接库 =====
