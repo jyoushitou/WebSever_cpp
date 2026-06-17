@@ -1,27 +1,22 @@
+//FrameWork.h工具实现文件
+//功能：用户业务线程、HTTP 服务器路由、平台初始化函数
+
 #include "FarmeWork.h"
 
-// ===== 全局变量定义 =====
+//全局变量定义
 Http::http_server* g_server = nullptr;               // HTTP 服务器全局指针
 std::atomic<bool> g_running(true);                   // 全局运行标志
-std::map<int, std::unique_ptr<UserThreadInfo>> g_userThreads;      // 用户ID → 用户线程信息
-std::mutex g_userThreadsMutex;                       // 保护 g_userThreads
-std::unordered_map<std::string, TaskResult> g_taskResults;         // taskId → 任务结果
-std::mutex g_taskResultsMutex;                       // 保护 g_taskResults
-
-// ---------- 工具函数 ----------
 
 
 
 
-// ---------- 用户线程主循环（每个用户一个独立的 "main"） ----------
+//用户线程主循环（每个用户一个独立的 "main"）
 
-/**
- * UserWorkerRoutine - 每个用户线程的主循环函数
- * 每个用户登录后都会创建一个独立线程，运行此函数
- * 该线程有自己独立的 DB 连接，像独立进程一样处理该用户的业务
- * @param info 用户线程信息结构体指针
- */
-void UserWorkerRoutine(UserThreadInfo* info) {
+//用户线程主循环函数
+//每个用户登录后都会创建一个独立线程，运行此函数
+//该线程有自己独立的 DB 连接，像独立进程一样处理该用户的业务
+//@param info 用户线程信息结构体指针
+void User_Worker_Routine(TaskSystem::UserThreadInfo* info) {
     // 打印用户线程启动日志：包含用户名、ID、权限级别
     Tools::Out_System("用户线程启动 - 用户: " + info->name +
                       " (ID: " + std::to_string(info->userId) +
@@ -51,33 +46,33 @@ void UserWorkerRoutine(UserThreadInfo* info) {
         })) {
             // ─── 有任务到达：逐一处理队列中的所有待办任务 ───
             while (!info->taskQueue.empty() && info->running && g_running) {
-                UserTask task = std::move(info->taskQueue.front()); // 取出队首任务
+                TaskSystem::UserTask task = std::move(info->taskQueue.front()); // 取出队首任务
                 info->taskQueue.erase(info->taskQueue.begin());     // 从队列中移除
                 lock.unlock();      // 处理任务时释放锁，允许新任务入队
 
                 // 更新任务状态为 PROCESSING（处理中），通知前端任务已在执行
-                UpdateTaskResult(task.taskId, info->userId, TaskStatus::PROCESSING, "");
+                TaskSystem::Update_Task_Result(task.taskId, info->userId, TaskSystem::TaskStatus::PROCESSING, "");
 
                 try {
                     switch (task.type) {
 
                         // ===== PING =====
-                        case UserTaskType::PING: {
-                            std::string echo = ParseJsonString(task.input, "message");
+                        case TaskSystem::UserTaskType::PING: {
+                            std::string echo = Tools::Json::Parse_Json_String(task.input, "message");
                             std::string result = "{"
                                 "\"pong\":true,"
                                 "\"echo\":\"" + echo + "\","
                                 "\"userId\":" + std::to_string(info->userId) + ","
                                 "\"userName\":\"" + info->name + "\"}";
-                            UpdateTaskResult(task.taskId, info->userId,
-                                             TaskStatus::COMPLETED, result);
+                            TaskSystem::Update_Task_Result(task.taskId, info->userId,
+                                             TaskSystem::TaskStatus::COMPLETED, result);
                             break;
                         }
 
                         // ===== PROCESS_DATA =====
-                        case UserTaskType::PROCESS_DATA: {
-                            std::string content = ParseJsonString(task.input, "content");
-                            std::string dataType = ParseJsonString(task.input, "type");
+                        case TaskSystem::UserTaskType::PROCESS_DATA: {
+                            std::string content = Tools::Json::Parse_Json_String(task.input, "content");
+                            std::string dataType = Tools::Json::Parse_Json_String(task.input, "type");
 
                             Tools::Out_System("用户线程 " + info->name +
                                               " 处理数据: " + dataType +
@@ -99,15 +94,15 @@ void UserWorkerRoutine(UserThreadInfo* info) {
                             } else {
                                 result = "{\"processed\":true,\"savedToDb\":false}";
                             }
-                            UpdateTaskResult(task.taskId, info->userId,
-                                             TaskStatus::COMPLETED, result);
+                            TaskSystem::Update_Task_Result(task.taskId, info->userId,
+                                             TaskSystem::TaskStatus::COMPLETED, result);
                             break;
                         }
 
                         // ===== SEND_NOTIFICATION =====
-                        case UserTaskType::SEND_NOTIFICATION: {
-                            std::string title = ParseJsonString(task.input, "title");
-                            std::string body  = ParseJsonString(task.input, "body");
+                        case TaskSystem::UserTaskType::SEND_NOTIFICATION: {
+                            std::string title = Tools::Json::Parse_Json_String(task.input, "title");
+                            std::string body  = Tools::Json::Parse_Json_String(task.input, "body");
 
                             Tools::Out_System("用户线程 " + info->name +
                                               " 通知: " + title + " - " + body);
@@ -118,15 +113,15 @@ void UserWorkerRoutine(UserThreadInfo* info) {
                                 "\"title\":\"" + title + "\","
                                 "\"body\":\"" + body + "\","
                                 "\"userId\":" + std::to_string(info->userId) + "}";
-                            UpdateTaskResult(task.taskId, info->userId,
-                                             TaskStatus::COMPLETED, result);
+                            TaskSystem::Update_Task_Result(task.taskId, info->userId,
+                                             TaskSystem::TaskStatus::COMPLETED, result);
                             break;
                         }
 
                         // ===== SYNC_DATABASE =====
-                        case UserTaskType::SYNC_DATABASE: {
-                            std::string table = ParseJsonString(task.input, "table");
-                            std::string data  = ParseJsonValueRaw(task.input, "data");
+                        case TaskSystem::UserTaskType::SYNC_DATABASE: {
+                            std::string table = Tools::Json::Parse_Json_String(task.input, "table");
+                            std::string data  = Tools::Json::Parse_Json_Value_Raw(task.input, "data");
 
                             Tools::Out_System("用户线程 " + info->name +
                                               " 同步数据库: " + table);
@@ -146,14 +141,14 @@ void UserWorkerRoutine(UserThreadInfo* info) {
                             } else {
                                 result = "{\"synced\":false,\"error\":\"数据库不可用\"}";
                             }
-                            UpdateTaskResult(task.taskId, info->userId,
-                                             TaskStatus::COMPLETED, result);
+                            TaskSystem::Update_Task_Result(task.taskId, info->userId,
+                                             TaskSystem::TaskStatus::COMPLETED, result);
                             break;
                         }
 
                         // ===== CUSTOM_EVENT =====
-                        case UserTaskType::CUSTOM_EVENT: {
-                            std::string eventType = ParseJsonString(task.input, "event");
+                        case TaskSystem::UserTaskType::CUSTOM_EVENT: {
+                            std::string eventType = Tools::Json::Parse_Json_String(task.input, "event");
                             if (eventType.empty()) eventType = "unknown";
 
                             Tools::Out_System("用户线程 " + info->name +
@@ -165,17 +160,17 @@ void UserWorkerRoutine(UserThreadInfo* info) {
                                 "\"userId\":" + std::to_string(info->userId) + ","
                                 "\"userName\":\"" + info->name + "\","
                                 "\"echo\":" + task.input + "}";
-                            UpdateTaskResult(task.taskId, info->userId,
-                                             TaskStatus::COMPLETED, result);
+                            TaskSystem::Update_Task_Result(task.taskId, info->userId,
+                                             TaskSystem::TaskStatus::COMPLETED, result);
                             break;
                         }
 
                         // ===== SHUTDOWN =====
-                        case UserTaskType::SHUTDOWN: {
+                        case TaskSystem::UserTaskType::SHUTDOWN: {
                             std::string result = "{\"shutdown\":true,\"userId\":"
                                 + std::to_string(info->userId) + "}";
-                            UpdateTaskResult(task.taskId, info->userId,
-                                             TaskStatus::COMPLETED, result);
+                            TaskSystem::Update_Task_Result(task.taskId, info->userId,
+                                             TaskSystem::TaskStatus::COMPLETED, result);
                             Tools::Out_System("用户线程 " + info->name + " 收到关闭指令");
                             info->running = false;
                             break;
@@ -183,8 +178,8 @@ void UserWorkerRoutine(UserThreadInfo* info) {
                     }
                 } catch (const std::exception& e) {
                     // 捕获到异常，将任务标记为 FAILED，记录错误消息
-                    UpdateTaskResult(task.taskId, info->userId,
-                                     TaskStatus::FAILED, "", e.what());
+                    TaskSystem::Update_Task_Result(task.taskId, info->userId,
+                                     TaskSystem::TaskStatus::FAILED, "", e.what());
                     Tools::Out_System_Error("用户线程 " + info->name +
                                            " 任务异常: " + std::string(e.what()));
                 }
@@ -225,19 +220,14 @@ void UserWorkerRoutine(UserThreadInfo* info) {
                       std::to_string(info->tasksProcessed.load()) + " 个任务)");
 }
 
-/**
- * CreateUserThread - 为用户创建一个独立的业务线程
- * 每个登录用户会获得一个专属线程，处理该用户的所有异步任务
- * @param userId 用户ID
- * @param name   用户名
- * @param level  用户权限级别
- */
-void CreateUserThread(int userId, const std::string& name, int level) {
-    std::lock_guard<std::mutex> lock(g_userThreadsMutex);  // 保护用户线程表
+//为用户创建一个独立的业务线程
+//每个登录用户会获得一个专属线程，处理该用户的所有异步任务
+void Create_User_Thread(int userId, const std::string& name, int level) {
+    std::lock_guard<std::mutex> lock(TaskSystem::g_userThreadsMutex);  // 保护用户线程表
 
     // 尝试重用或清理已退出的用户线程
-    auto existing = g_userThreads.find(userId);
-    if (existing != g_userThreads.end()) {
+    auto existing = TaskSystem::g_userThreads.find(userId);
+    if (existing != TaskSystem::g_userThreads.end()) {
         if (existing->second->running.load()) {
             Tools::Out_System("用户线程 " + name + " 已有线程在运行");
             return;  // 该用户已有活跃线程，不再重复创建
@@ -246,27 +236,22 @@ void CreateUserThread(int userId, const std::string& name, int level) {
         if (existing->second->worker.joinable()) {
             existing->second->worker.detach();  // 确保线程完全分离
         }
-        g_userThreads.erase(existing);
+        TaskSystem::g_userThreads.erase(existing);
     }
-    auto info = std::make_unique<UserThreadInfo>();  // 创建用户线程信息对象
+    auto info = std::make_unique<TaskSystem::UserThreadInfo>();  // 创建用户线程信息对象
     info->userId = userId;
     info->name = name;
     info->level = level;
     info->running = true;                  // 标记线程为运行状态
     info->startTime = std::time(nullptr);  // 记录创建时间
-    info->worker = std::thread(UserWorkerRoutine, info.get());  // 启动工作线程
-    g_userThreads[userId] = std::move(info);  // 移入全局表管理
+    info->worker = std::thread(User_Worker_Routine, info.get());  // 启动工作线程
+    TaskSystem::g_userThreads[userId] = std::move(info);  // 移入全局表管理
     Tools::Out_System("为用户 " + name + " (ID: " + std::to_string(userId) +
                       ") 创建了专属业务线程");
 }
-// ==================== HTTP 服务器路由 ====================
-
-/**
- * HttpServerRoutine - HTTP 服务器主函数
- * 在子进程/子线程中运行，启动 HTTP 服务器并注册所有 API 路由
- * @param Port 监听端口号
- */
-void HttpServerRoutine(int Port) {
+//HTTP 服务器路由
+//HTTP 服务器主函数——在子进程/子线程中运行，启动 HTTP 服务器并注册所有 API 路由
+void Http_Server_Routine(int Port) {
     // 打印当前进程 PID，便于调试
     std::cout << "HTTP Server worker started, PID: "
 #ifdef _WIN32
@@ -308,9 +293,9 @@ void HttpServerRoutine(int Port) {
         }
 
         // 从请求 JSON body 中解析出用户名、密码、设备名
-        std::string name = ParseJsonString(req.body, "name");
-        std::string password = ParseJsonString(req.body, "password");
-        std::string deviceName = ParseJsonString(req.body, "device_name");
+        std::string name = Tools::Json::Parse_Json_String(req.body, "name");
+        std::string password = Tools::Json::Parse_Json_String(req.body, "password");
+        std::string deviceName = Tools::Json::Parse_Json_String(req.body, "device_name");
 
                 // 参数非空校验
         if (name.empty() || password.empty()) {
@@ -361,34 +346,34 @@ void HttpServerRoutine(int Port) {
                 "WHERE id = " + std::to_string(userId);
             mysql_query(db->conn, updateSql.c_str());
 
-            std::string token = GenerateToken();    // 生成会话 token
+            std::string token = Tools::Auth::Generate_Token();    // 生成会话 token
 
             {   // 将登录会话信息存入全局 token 存储
-                std::lock_guard<std::mutex> lock(g_tokenMutex);
-                DeviceInfo device;
+                std::lock_guard<std::mutex> lock(Tools::Auth::g_tokenMutex);
+                Tools::Auth::DeviceInfo device;
                 device.deviceName = deviceName;
                 device.userAgent = userAgent;
                 device.clientIp = clientIp;
                 device.loginTime = now;
-                g_tokenStore[token] = {userId, permission, name, device};
+                Tools::Auth::g_tokenStore[token] = {userId, permission, name, device};
             }
 
                                 std::cout << "[登录] 成功 - 用户: " << name
                   << ", 设备: " << deviceName
                   << ", IP: " << clientIp << std::endl;
-            CreateUserThread(userId, name, permission);  // 创建该用户的专属业务线程
+            Create_User_Thread(userId, name, permission);  // 创建该用户的专属业务线程
 
             // 向用户线程投递一个登录事件（记录设备信息）
-            PostUserTask(userId, UserTaskType::CUSTOM_EVENT,
+            TaskSystem::Post_User_Task(userId, TaskSystem::UserTaskType::CUSTOM_EVENT,
                          "{\"event\":\"login\",\"device\":\"" + deviceName + "\"}", "登录系统");
 
             // 收集该用户所有已登录设备列表，返回给前端
             std::string devicesJson = "[";
                         // 遍历全局 token 表，收集该用户的全部登录设备信息
             {
-                std::lock_guard<std::mutex> lock(g_tokenMutex);
+                std::lock_guard<std::mutex> lock(Tools::Auth::g_tokenMutex);
                 bool first = true;
-                for (const auto& [t, session] : g_tokenStore) {
+                for (const auto& [t, session] : Tools::Auth::g_tokenStore) {
                     if (session.userId == userId) {
                         if (!first) devicesJson += ",";
                         first = false;
@@ -434,8 +419,8 @@ void HttpServerRoutine(int Port) {
             return res;
         }
 
-        std::string name = ParseJsonString(req.body, "name");
-        std::string password = ParseJsonString(req.body, "password");
+        std::string name = Tools::Json::Parse_Json_String(req.body, "name");
+        std::string password = Tools::Json::Parse_Json_String(req.body, "password");
 
         if (name.empty() || password.empty()) {
             res.status_code = 400;
@@ -473,8 +458,8 @@ void HttpServerRoutine(int Port) {
         res.headers["Access-Control-Allow-Origin"] = "*";
 
         // 验证 token
-        std::string token = GetTokenFromRequest(req);
-        SessionInfo* session = ValidateToken(token);
+        std::string token = Tools::Auth::Get_Token_From_Request(req);
+        Tools::Auth::SessionInfo* session = Tools::Auth::Validate_Token(token);
         if (!session) {
             res.status_code = 401;
             res.body = "{\"status\": \"fail\", \"message\": \"未登录或 token 已失效\"}";
@@ -502,15 +487,15 @@ void HttpServerRoutine(int Port) {
         res.headers["Access-Control-Allow-Origin"] = "*";
 
         // 从请求体中获取 task_id
-        std::string taskId = ParseJsonString(req.body, "task_id");
+        std::string taskId = Tools::Json::Parse_Json_String(req.body, "task_id");
         if (taskId.empty()) {
             res.body = "{\"status\":\"fail\",\"message\":\"请提供 task_id\"}";
             return res;
         }
 
         // 验证登录 token
-        std::string token = GetTokenFromRequest(req);
-        SessionInfo* session = ValidateToken(token);
+        std::string token = Tools::Auth::Get_Token_From_Request(req);
+        Tools::Auth::SessionInfo* session = Tools::Auth::Validate_Token(token);
         if (!session) {
             res.status_code = 401;
             res.body = "{\"status\":\"fail\",\"message\":\"未登录\"}";
@@ -518,7 +503,7 @@ void HttpServerRoutine(int Port) {
         }
 
         // 在全局结果表中查找该任务
-        TaskResult* result = GetTaskResult(taskId);
+        TaskSystem::TaskResult* result = TaskSystem::Get_Task_Result(taskId);
         if (!result) {
             res.status_code = 404;
             res.body = "{\"status\":\"fail\",\"message\":\"任务不存在或已过期\"}";
@@ -535,10 +520,10 @@ void HttpServerRoutine(int Port) {
         // 将枚举状态转为前端可读的字符串
         std::string statusStr;
         switch (result->status) {
-            case TaskStatus::PENDING:    statusStr = "pending";    break;
-            case TaskStatus::PROCESSING: statusStr = "processing"; break;
-            case TaskStatus::COMPLETED:  statusStr = "completed";  break;
-            case TaskStatus::FAILED:     statusStr = "failed";     break;
+            case TaskSystem::TaskStatus::PENDING:    statusStr = "pending";    break;
+            case TaskSystem::TaskStatus::PROCESSING: statusStr = "processing"; break;
+            case TaskSystem::TaskStatus::COMPLETED:  statusStr = "completed";  break;
+            case TaskSystem::TaskStatus::FAILED:     statusStr = "failed";     break;
             default:                     statusStr = "unknown";    break;
         }
 
@@ -563,8 +548,8 @@ void HttpServerRoutine(int Port) {
         res.headers["Access-Control-Allow-Origin"] = "*";
 
         // 验证 token
-        std::string token = GetTokenFromRequest(req);
-        SessionInfo* session = ValidateToken(token);
+        std::string token = Tools::Auth::Get_Token_From_Request(req);
+        Tools::Auth::SessionInfo* session = Tools::Auth::Validate_Token(token);
         if (!session) {
             res.status_code = 401;
             res.body = "{\"status\": \"fail\", \"message\": \"未登录或 token 已失效\"}";
@@ -576,8 +561,8 @@ void HttpServerRoutine(int Port) {
         std::string devicesJson = "[";
         bool first = true;
         {
-            std::lock_guard<std::mutex> lock(g_tokenMutex);
-            for (const auto& [t, s] : g_tokenStore) {
+            std::lock_guard<std::mutex> lock(Tools::Auth::g_tokenMutex);
+            for (const auto& [t, s] : Tools::Auth::g_tokenStore) {
                 if (s.userId == userId) {
                     if (!first) devicesJson += ",";
                     first = false;
@@ -609,18 +594,18 @@ void HttpServerRoutine(int Port) {
         res.headers["Content-Type"] = "application/json";
         res.headers["Access-Control-Allow-Origin"] = "*";
 
-                std::string token = GetTokenFromRequest(req);
+                std::string token = Tools::Auth::Get_Token_From_Request(req);
         std::string deviceName = "未知";
         if (!token.empty()) {
             int userId = -1;
             bool otherDevicesOnline = false;
             std::string userName;
 
-            // 第一阶段：在 g_tokenMutex 保护下收集信息并删除 token
+            // 第一阶段：在 Tools::Auth::g_tokenMutex 保护下收集信息并删除 token
             {
-                std::lock_guard<std::mutex> lock(g_tokenMutex);
-                auto it = g_tokenStore.find(token);
-                if (it == g_tokenStore.end()) {
+                std::lock_guard<std::mutex> lock(Tools::Auth::g_tokenMutex);
+                auto it = Tools::Auth::g_tokenStore.find(token);
+                if (it == Tools::Auth::g_tokenStore.end()) {
                     // token 不存在，直接返回
                     res.body = "{\"status\": \"success\", \"message\": \"已退出登录\"}";
                     return res;
@@ -631,25 +616,25 @@ void HttpServerRoutine(int Port) {
                 userName = it->second.name;
 
                 // 检查该用户是否还有其它设备在线（不包括当前要注销的）
-                for (const auto& [otherToken, otherSession] : g_tokenStore) {
+                for (const auto& [otherToken, otherSession] : Tools::Auth::g_tokenStore) {
                     if (otherToken != token && otherSession.userId == userId) {
                         otherDevicesOnline = true;
                         break;
                     }
                 }
 
-                g_tokenStore.erase(it);  // 删除当前设备的 token
+                Tools::Auth::g_tokenStore.erase(it);  // 删除当前设备的 token
                 std::cout << "[退出] 设备 '" << deviceName << "' 已注销登录" << std::endl;
             }
-            // g_tokenMutex 已释放
+            // Tools::Auth::g_tokenMutex 已释放
 
             // 第二阶段：根据是否还有其他设备，决定是否关闭用户线程
             if (!otherDevicesOnline && userId > 0) {
                 // 没有其他设备在线 → 关闭该用户的专属线程
-                // 此时 g_tokenMutex 已释放，不会产生死锁
-                PostUserTask(userId, UserTaskType::SHUTDOWN, "{}", "logout");
+                // 此时 Tools::Auth::g_tokenMutex 已释放，不会产生死锁
+                TaskSystem::Post_User_Task(userId, TaskSystem::UserTaskType::SHUTDOWN, "{}", "logout");
 
-                // 注：不在此处立即删除 g_userThreads 中的条目。
+                // 注：不在此处立即删除 TaskSystem::g_userThreads 中的条目。
                 // 用户线程处理 SHUTDOWN 任务后会自然退出循环并清理自身。
                 // 线程退出后，其对应的 UserThreadInfo 会由专门的清理机制处理。
                 std::cout << "[退出] 用户 " << userName
@@ -677,8 +662,8 @@ void HttpServerRoutine(int Port) {
         res.headers["Access-Control-Allow-Origin"] = "*";
 
         // 验证登录
-        std::string token = GetTokenFromRequest(req);
-        SessionInfo* session = ValidateToken(token);
+        std::string token = Tools::Auth::Get_Token_From_Request(req);
+        Tools::Auth::SessionInfo* session = Tools::Auth::Validate_Token(token);
         if (!session) {
             res.status_code = 401;
             res.body = "{\"status\": \"fail\", \"message\": \"未登录\"}";
@@ -686,7 +671,7 @@ void HttpServerRoutine(int Port) {
         }
 
         // 向该用户的线程投递一个 PROCESS_DATA 任务
-        std::string taskId = PostUserTask(session->userId, UserTaskType::PROCESS_DATA,
+        std::string taskId = TaskSystem::Post_User_Task(session->userId, TaskSystem::UserTaskType::PROCESS_DATA,
                                           req.body, "POST /api/data");
         if (!taskId.empty()) {
             res.body = "{"
@@ -709,8 +694,8 @@ void HttpServerRoutine(int Port) {
         res.headers["Content-Type"] = "application/json";
         res.headers["Access-Control-Allow-Origin"] = "*";
 
-        std::string token = GetTokenFromRequest(req);
-        SessionInfo* session = ValidateToken(token);
+        std::string token = Tools::Auth::Get_Token_From_Request(req);
+        Tools::Auth::SessionInfo* session = Tools::Auth::Validate_Token(token);
         if (!session) {
             res.status_code = 401;
             res.body = "{\"status\": \"fail\", \"message\": \"未登录\"}";
@@ -718,7 +703,7 @@ void HttpServerRoutine(int Port) {
         }
 
         // 向该用户的线程投递一个 SYNC_DATABASE 任务
-        std::string taskId = PostUserTask(session->userId, UserTaskType::SYNC_DATABASE,
+        std::string taskId = TaskSystem::Post_User_Task(session->userId, TaskSystem::UserTaskType::SYNC_DATABASE,
                                           req.body, "PUT /api/update");
         if (!taskId.empty()) {
             res.body = "{"
@@ -741,8 +726,8 @@ void HttpServerRoutine(int Port) {
         res.headers["Content-Type"] = "application/json";
         res.headers["Access-Control-Allow-Origin"] = "*";
 
-        std::string token = GetTokenFromRequest(req);
-        SessionInfo* session = ValidateToken(token);
+        std::string token = Tools::Auth::Get_Token_From_Request(req);
+        Tools::Auth::SessionInfo* session = Tools::Auth::Validate_Token(token);
         if (!session) {
             res.status_code = 401;
             res.body = "{\"status\": \"fail\", \"message\": \"未登录\"}";
@@ -750,7 +735,7 @@ void HttpServerRoutine(int Port) {
         }
 
         // 向该用户的线程投递一个 CUSTOM_EVENT 任务（action=delete）
-        std::string taskId = PostUserTask(session->userId, UserTaskType::CUSTOM_EVENT,
+        std::string taskId = TaskSystem::Post_User_Task(session->userId, TaskSystem::UserTaskType::CUSTOM_EVENT,
                                           "{\"action\":\"delete\"}", "DELETE /api/delete");
         if (!taskId.empty()) {
             res.body = "{"
@@ -765,11 +750,11 @@ void HttpServerRoutine(int Port) {
         return res;
     });
 
-                // 启动 HTTP 服务器，开始监听并处理请求
+                    // 启动 HTTP 服务器，开始监听并处理请求
     std::cout << "Server is running on port " << Port << " in child process" << std::endl;
     g_server->Start(false);  // false = 不阻塞调用方
 
-        // 服务器关闭后，清理专用数据库连接和 HTTP 服务器实例
+    // 服务器关闭后，清理专用数据库连接和 HTTP 服务器实例
     if (g_server) {
         delete g_server;
         g_server = nullptr;
@@ -780,22 +765,19 @@ void HttpServerRoutine(int Port) {
     }
 }
 
-// ==================== 初始化函数 ====================
+//初始化函数
 
-/**
- * Initiave_Http - 初始化并启动 HTTP 服务器
- * Windows 下创建线程，Linux 下 fork 子进程，不阻塞主进程
- * @param Port 监听端口号
- */
-void Initiave_Http(int Port) {
+//初始化并启动 HTTP 服务器
+//Windows 下创建线程，Linux 下 fork 子进程，不阻塞主进程
+void Initiate_Http(int Port) {
 #ifdef _WIN32
-    std::thread serverThread(HttpServerRoutine, Port);  // Windows：创建线程
+    std::thread serverThread(Http_Server_Routine, Port);  // Windows：创建线程
     serverThread.detach();                               // 分离线程，后台运行
     Tools::Out_System("HTTP 服务器线程已启动 (端口: " + std::to_string(Port) + ")");
 #else
     pid_t pid = fork();                                  // Linux：frok 子进程
     if (pid == 0) {                                      // 子进程
-        HttpServerRoutine(Port);                         // 启动 HTTP 服务器
+        Http_Server_Routine(Port);                         // 启动 HTTP 服务器
         exit(0);                                         // 子进程退出
     } else if (pid > 0) {                                // 父进程
         Tools::Out_System("HTTP 服务器在子进程中运行 (PID: " + std::to_string(pid) +
@@ -806,11 +788,9 @@ void Initiave_Http(int Port) {
 #endif
 }
 
-/**
- * Initiave_MySQL - 初始化 MySQL 数据库连接
- * @return 数据库连接对象指针，失败返回 nullptr
- */
-MySQL::mysql* Initiave_MySQL() {
+//初始化 MySQL 数据库连接
+//返回数据库连接对象指针，失败返回 nullptr
+MySQL::mysql* Initiate_MySQL() {
     try {
         return new MySQL::mysql();                       // 创建并返回数据库连接对象
     } catch (const std::exception& e) {

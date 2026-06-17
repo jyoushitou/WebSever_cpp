@@ -1,15 +1,10 @@
-// ============================================================
-// https_api.cpp — HTTP 服务器核心实现
-// 功能：Socket 生命周期管理、HTTP 协议解析、路由分发、
-//       静态文件服务、JSON 工具函数
-// ============================================================
+//https_api.h工具实现文件
+//功能：Socket 生命周期管理、HTTP 协议解析、路由分发、静态文件服务、JSON 工具函数
 
 #include "../header/https_api.h"
 
 namespace Http {
-
-    // ==================== 构造/析构 ====================
-
+    //构造函数
     http_server::http_server(int port, int maxConnections)
         : m_port(port)
         , m_max_connections(maxConnections)
@@ -19,21 +14,17 @@ namespace Http {
         m_static_dir = Get_Static_Dir();  // 自动查找静态文件目录
     }
 
+    //析构函数—析构时自动停止服务器
     http_server::~http_server() {
-        Stop();  // 析构时自动停止服务器
+        Stop();
     }
 
     void http_server::Set_Static_Dir(const std::string& dir) {
         m_static_dir = dir;
     }
 
-    // ============================================================
-    // JSON 工具函数
-    // 手工解析 JSON（不依赖第三方库），仅支持简单场景
-    // ============================================================
-
-    // 从 JSON 字符串中提取指定 key 的值
-    // 支持字符串、数字、布尔、对象、数组
+    //JSON 工具函数（手工解析，不依赖第三方库）
+    //从 JSON 字符串中提取指定 key 的值
     std::string http_server::Get_Json_Value(const std::string& json, const std::string& key) {
         std::string searchKey = "\"" + key + "\"";         // 构造 "key":
         size_t keyPos = json.find(searchKey);
@@ -71,8 +62,7 @@ namespace Http {
         }
     }
 
-    // 构建标准 JSON 响应
-    // 格式：{"code": 200, "message": "...", "data": ...}
+    //构建标准 JSON 响应 — 格式：{"code": 200, "message": "...", "data": ...}
     std::string http_server::Build_Json_Response(int code, const std::string& message, const std::string& data) {
         std::string json = "{";
         json += "\"code\": " + std::to_string(code) + ", ";
@@ -84,11 +74,7 @@ namespace Http {
         return json;
     }
 
-    // ============================================================
-    // 路由注册方法
-    // 将路径和处理函数（std::function）存入对应的路由表
-    // ============================================================
-
+    //路由注册方法 — 将路径和处理函数存入对应的路由表
     void http_server::Get(const std::string& path, std::function<HttpResponse(const HttpRequest&)> handler) {
         m_get_routes[path] = handler;         // 存入 GET 路由表
     }
@@ -105,12 +91,9 @@ namespace Http {
         m_delete_routes[path] = handler;      // 存入 DELETE 路由表
     }
 
-        // ============================================================
-    // 批量注册所有业务路由
-    // 将 FrameWork.cpp::HttpServerRoutine 中的 lambda 路由集中到此
-    // 需要在 HttpServerRoutine 创建 server 后调用
-    // ============================================================
-            void http_server::RegisterBusinessRoutes() {
+    //批量注册所有业务路由
+    //将 FrameWork.cpp::Http_Server_Routine 中的 lambda 路由集中到此
+    void http_server::RegisterBusinessRoutes() {
         // ===== GET /api/hello =====
         Get("/api/hello", [this](const HttpRequest& req) -> HttpResponse {
             HttpResponse res;
@@ -210,11 +193,7 @@ namespace Http {
         });
     }
 
-    // ============================================================
-    // 获取静态文件目录
-    // 自动查找前端构建输出的位置（支持多种目录结构）
-    // ============================================================
-
+        //获取静态文件目录——自动查找前端构建输出的位置
     std::string http_server::Get_Static_Dir() {
         std::string exeDir;
 
@@ -271,15 +250,11 @@ namespace Http {
     }
     
 
-        // ============================================================
-    // 初始化服务器
-    //
-    // TCP Socket 创建流程：
-    // 1. socket() — 创建 Socket 文件描述符
-    // 2. setsockopt() — 设置 SO_REUSEADDR 允许端口重用
-    // 3. bind() — 绑定到指定 IP 和端口
-    // 4. listen() — 开始监听（在 Start() 中调用）
-    // ============================================================
+    //初始化服务器——TCP Socket 创建流程
+    //1. socket() — 创建 Socket 文件描述符
+    //2. setsockopt() — 设置 SO_REUSEADDR 允许端口重用
+    //3. bind() — 绑定到指定 IP 和端口
+    //4. listen() — 开始监听（在 Start() 中调用）
     bool http_server::Initialize() {
 #ifdef _WIN32
         // Windows 下需要先初始化 Winsock2 库
@@ -325,13 +300,9 @@ namespace Http {
         return true;
     }
 
-    // ============================================================
-    // 启动服务器
-    //
-    // async 参数：
-    //   true  — 在独立线程中运行，不阻塞调用者
-    //   false — 阻塞运行（通常在子进程中使用）
-    // ============================================================
+    //启动服务器
+    //async=true — 在独立线程中运行，不阻塞调用者
+    //async=false — 阻塞运行（通常在子进程中使用）
     void http_server::Start(bool async) {
         if (!Initialize()) {
             Tools::Out_System_Error("Server initialization failed");
@@ -359,10 +330,7 @@ namespace Http {
         }
     }
 
-    // ============================================================
-    // 停止服务器
-    // 关闭监听 Socket，停止接受新连接
-    // ============================================================
+    //停止服务器——关闭监听 Socket，停止接受新连接
     void http_server::Stop() {
         if (!m_running) return;
 
@@ -382,12 +350,13 @@ namespace Http {
         Tools::Out_System_Http("Server stopped");
     }
 
-    // ============================================================
-    // HTTP 请求解析
-    //
-    // 解析原始 HTTP 请求报文，提取方法、路径、头部和主体
-    // 支持 GET/POST/PUT/DELETE 方法
-    // ============================================================
+
+
+
+
+
+
+    //HTTP 请求解析——解析原始 HTTP 请求报文，提取方法、路径、头部和主体
     HttpRequest http_server::Request_Parse(const std::string& raw, const std::string& client_ip) {
         HttpRequest req;
         req.client_ip = client_ip;
@@ -463,12 +432,8 @@ namespace Http {
         return req;
     }
 
-    // ============================================================
-    // HTTP 响应构建
-    //
-    // 将 HttpResponse 结构体序列化为 HTTP 响应报文
-    // 格式：HTTP/1.1 200 OK\r\nHeader: Value\r\n\r\nBody
-    // ============================================================
+    //HTTP 响应构建——将 HttpResponse 序列化为 HTTP 响应报文
+    //格式：HTTP/1.1 200 OK\r\nHeader: Value\r\n\r\nBody
     std::string http_server::Response_Build(const HttpResponse& res) {
         std::ostringstream response;
 
@@ -495,14 +460,10 @@ namespace Http {
         return response.str();
     }
 
-    // ============================================================
-    // 默认请求处理器
-    //
-    // 处理流程：
-    // 1. 查找路由表 → 匹配则调用对应的处理器
-    // 2. 非 API 路径 → 尝试提供静态文件服务
-    // 3. 都不匹配 → 返回 404
-    // ============================================================
+        //默认请求处理器
+    //1. 查找路由表 → 匹配则调用对应的处理器
+    //2. 非 API 路径 → 尝试提供静态文件服务
+    //3. 都不匹配 → 返回 404
     HttpResponse http_server::Default_Request_Handle(const HttpRequest& req) {
         HttpResponse res;
         res.headers["Access-Control-Allow-Origin"] = "*";
@@ -588,11 +549,7 @@ namespace Http {
         return res;
     }
 
-    // ============================================================
-    // 接受连接主循环
-    //
-    // 持续接受新客户端连接，为每个客户端创建新线程处理
-    // ============================================================
+        //接受连接主循环——持续接受新客户端连接，为每个客户端创建新线程处理
     void http_server::Run_Accept_Loop() {
         struct sockaddr_in client_addr;
         socklen_t client_len = sizeof(client_addr);
@@ -630,16 +587,12 @@ namespace Http {
         Tools::Out_System_Http("Accept loop ended");
     }
 
-    // ============================================================
-    // 处理单个客户端请求
-    //
-    // 静态方法：作为线程入口点
-    // 1. 接收 HTTP 请求数据
-    // 2. 解析请求
-    // 3. 路由分发
-    // 4. 构建并发送响应
-    // 5. 关闭连接
-    // ============================================================
+        //处理单个客户端请求（静态方法：作为线程入口点）
+    //1. 接收 HTTP 请求数据
+    //2. 解析请求
+    //3. 路由分发
+    //4. 构建并发送响应
+    //5. 关闭连接
     void http_server::Handle_Client(SOCKET clientSocket, http_server* server) {
         // 1. 接收请求数据
         std::string raw_request;
