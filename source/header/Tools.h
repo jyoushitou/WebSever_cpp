@@ -27,10 +27,12 @@ namespace Http { struct HttpRequest; }
 namespace Tools{
     //日志输出
     void Out_System(std::string);           // 普通系统日志 [输出]
+    void Out_Sysrem(std::string , std::string);// 用户操作输出
     void Out_System_Mysql(std::string);     // MySQL 相关日志 [MySQL]
     void Out_System_Http(std::string);      // HTTP 相关日志 [HTTP]
     void Out_System_Error(std::string);     // 错误日志 [错误]（输出到 stderr）
     void Out_System_Exit(std::string);      // 退出日志 [Exit]
+    void Out_System_user(std::string,std::string);// 用户登录
 
     //控制台输入
     int Input_System_int();                 // 从控制台读取整数

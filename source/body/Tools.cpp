@@ -11,6 +11,10 @@ namespace Tools{
         std::cout << "[输出]" << str << std::endl;          // 普通信息：std::cout
     }
 
+    void Out_Sysrem(std::string user , std::string str){
+        std::cout << "[" << user << "]" << str << std::endl;// 用户使用输出
+    }
+
     void Out_System_Mysql(std::string str){
         std::cout << "[MySQL]" << str << std::endl;         // MySQL 操作日志
     }
@@ -25,6 +29,10 @@ namespace Tools{
 
     void Out_System_Exit(std::string str){
         std::cout << "[exit]" << str <<std::endl;           // 退出日志
+    }
+
+    void Out_System_user(std::string user,std::string str){
+        std::cout << "["<<user<<"]"<<str<<std::endl;        //用户操作
     }
 
     //控制台输入

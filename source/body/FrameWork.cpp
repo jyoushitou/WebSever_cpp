@@ -7,9 +7,6 @@
 Http::http_server* g_server = nullptr;               // HTTP 服务器全局指针
 std::atomic<bool> g_running(true);                   // 全局运行标志
 
-
-
-
 //用户线程主循环（每个用户一个独立的 "main"）
 
 //用户线程主循环函数
@@ -18,9 +15,9 @@ std::atomic<bool> g_running(true);                   // 全局运行标志
 //@param info 用户线程信息结构体指针
 void User_Worker_Routine(TaskSystem::UserThreadInfo* info) {
     // 打印用户线程启动日志：包含用户名、ID、权限级别
-    Tools::Out_System("用户线程启动 - 用户: " + info->name +
-                      " (ID: " + std::to_string(info->userId) +
-                      ", 级别: " + std::to_string(info->level) + ")");
+    Tools::Out_System_user(info->name,"用户线程启动 - 用户: " 
+        + info->name +" (ID: " + std::to_string(info->userId) 
+        + ", 级别: " + std::to_string(info->level) + ")");
 
     info->startTime = std::time(nullptr);   // 记录线程启动时间
 
@@ -28,12 +25,12 @@ void User_Worker_Routine(TaskSystem::UserThreadInfo* info) {
     MySQL::mysql* threadDb = nullptr;
     try {
         threadDb = new MySQL::mysql();      // 为该线程创建一个独立的 DB 连接
-        Tools::Out_System("用户线程 " + info->name + " 数据库连接成功");
+        Tools::Out_System_Mysql("用户线程 " + info->name + " 数据库连接成功");
     } catch (const std::exception& e) {
         Tools::Out_System_Error("用户线程 " + info->name + " 数据库连接失败: " + std::string(e.what()));
     }
 
-    // ========== 用户线程主循环 ==========
+    // 用户线程主循环 
     // 循环条件：该线程未被标记停止 且 全局服务器仍在运行
     while (info->running && g_running) {
         std::unique_lock<std::mutex> lock(info->taskMutex); // 先获取任务队列锁
