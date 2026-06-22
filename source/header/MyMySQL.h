@@ -5,7 +5,12 @@
 #define MYMYSQL_H
 #include <iostream>         // 输入输出流
 #include <string>           // 字符串
-#include <mysql/mysql.h>     // MySQL C API
+// 跨平台包含 MySQL C API 头文件
+#ifdef _WIN32
+    #include <mysql.h>           // Windows：CMake 已添加 include 目录，直接引用
+#else
+    #include <mysql/mysql.h>     // Linux：系统路径 /usr/include/mysql/mysql.h
+#endif
 
 #include "Tools.h"          // 工具库（日志输出）
 

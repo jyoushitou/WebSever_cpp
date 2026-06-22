@@ -73,7 +73,7 @@ namespace Http {
     // http_server 类 — 完整的 HTTP 服务器封装
     class http_server {
         private:
-            //参数
+                                    //参数
             int m_port;                                             // 监听端口号
             std::string m_static_dir;                               // 静态文件目录
             int m_max_connections;                                  // 最大连接数
@@ -99,8 +99,8 @@ namespace Http {
             std::string Build_Json_Response(int code, const std::string& message, const std::string& data); // 构建标准 JSON 响应
 
         public:
-            //构造函数
-            http_server(int port = 8080, int maxConnections = 10);  // 默认构造：端口 8080，最大连接数 10
+                        //构造函数
+                        http_server(int port = 8080, int maxConnections = 10);  // 默认构造：端口 8080，最大连接数 10
             ~http_server();                                         // 析构时自动停止服务器
 
             //配置方法

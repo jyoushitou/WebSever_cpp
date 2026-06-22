@@ -4,15 +4,15 @@
 #include "../header/https_api.h"
 
 namespace Http {
-    //构造函数
-    http_server::http_server(int port, int maxConnections)
-        : m_port(port)
-        , m_max_connections(maxConnections)
-        , m_server_socket(INVALID_SOCKET)
-        , m_running(false)
-    {
-        m_static_dir = Get_Static_Dir();  // 自动查找静态文件目录
-    }
+        //构造函数
+        http_server::http_server(int port, int maxConnections)
+            : m_port(port)
+            , m_max_connections(maxConnections)
+            , m_server_socket(INVALID_SOCKET)
+            , m_running(false)
+        {
+            m_static_dir = Get_Static_Dir();  // 自动查找静态文件目录
+        }
 
     //析构函数—析构时自动停止服务器
     http_server::~http_server() {
@@ -282,21 +282,21 @@ namespace Http {
             return false;
         }
 
-        // 3. 绑定到指定端口
-        // sockaddr_in 结构：IPv4 地址 + 端口号
-        struct sockaddr_in server_addr;
-        std::memset(&server_addr, 0, sizeof(server_addr));
-        server_addr.sin_family = AF_INET;                    // IPv4
-        server_addr.sin_addr.s_addr = INADDR_ANY;            // 监听所有网络接口
-        server_addr.sin_port = htons(m_port);                // 端口号（网络字节序）
+                // 3. 绑定到指定端口
+                // sockaddr_in 结构：IPv4 地址 + 端口号
+                struct sockaddr_in server_addr;
+                std::memset(&server_addr, 0, sizeof(server_addr));
+                server_addr.sin_family = AF_INET;                    // IPv4
+                server_addr.sin_addr.s_addr = INADDR_ANY;            // 监听所有网络接口
+                server_addr.sin_port = htons(m_port);                // 端口号（网络字节序）
 
-        if (bind(m_server_socket, (struct sockaddr*)&server_addr,
-                 sizeof(server_addr)) < 0) {
-            Tools::Out_System_Error("Failed to bind to port " + std::to_string(m_port));
-            return false;
-        }
+                if (bind(m_server_socket, (struct sockaddr*)&server_addr,
+                         sizeof(server_addr)) < 0) {
+                    Tools::Out_System_Error("Failed to bind to port " + std::to_string(m_port));
+                    return false;
+                }
 
-        Tools::Out_System_Http("Server initialized on port " + std::to_string(m_port));
+                Tools::Out_System_Http("Server initialized on port " + std::to_string(m_port));
         return true;
     }
 
