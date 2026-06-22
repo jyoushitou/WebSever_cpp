@@ -5,7 +5,7 @@
 #define MYMYSQL_H
 #include <iostream>         // 输入输出流
 #include <string>           // 字符串
-#include <mysql.h>          // MySQL C API
+#include <mysql/mysql.h>     // MySQL C API
 
 #include "Tools.h"          // 工具库（日志输出）
 
