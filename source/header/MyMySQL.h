@@ -39,7 +39,7 @@ namespace MySQL{
             ~mysql();                                            // 析构时自动关闭连接
 
         private:
-                        //参数
+            //参数
             // MySQL 服务器地址：Windows 本地开发用 localhost，Linux 部署用远程服务器
             #ifdef _WIN32
                 const std::string host = "localhost";            // 数据库服务器地址（本地）
