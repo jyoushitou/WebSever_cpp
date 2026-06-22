@@ -39,8 +39,13 @@ namespace MySQL{
             ~mysql();                                            // 析构时自动关闭连接
 
         private:
-            //参数
-            const std::string host = "localhost";                // 数据库服务器地址（本地）
+                        //参数
+            // MySQL 服务器地址：Windows 本地开发用 localhost，Linux 部署用远程服务器
+            #ifdef _WIN32
+                const std::string host = "localhost";            // 数据库服务器地址（本地）
+            #else
+                const std::string host = "192.168.0.52";         // 数据库服务器地址（远程）
+            #endif
             const int port = 3306;                               // MySQL 默认端口
             const std::string user = "web_server";               // 数据库用户名（需提前创建）
             const std::string password = "123456";               // 数据库密码
